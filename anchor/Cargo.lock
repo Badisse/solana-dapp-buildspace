@@ -23,13 +23,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anchor"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
-]
-
-[[package]]
 name = "anchor-attribute-access-control"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -772,6 +765,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "myepicproject"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
 ]
 
 [[package]]
