@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import Grid from '../components/Grid';
 import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
 import { Program, AnchorProvider, web3 } from '@project-serum/anchor';
+import kp from '../keypair.json'
 
 // SystemProgram is a reference to the Solana runtime!
 const { SystemProgram, Keypair } = web3;
 
-// Create a keypair for the account that will hold the GIF data.
-let baseAccount = Keypair.generate();
+const arr = Object.values(kp._keypair.secretKey)
+const secret = new Uint8Array(arr)
+const baseAccount = web3.Keypair.fromSecretKey(secret)
 
 // This is the address of your solana program, if you forgot, just run solana address -k target/deploy/myepicproject-keypair.json
 const programID = new PublicKey('WJjLkThJKPff4aF9QDf8jZaYoosoMrim7dZzVqJ6QDc');
@@ -37,7 +39,7 @@ const TEST_GIFS = [
 const Home: NextPage = () => {
   const [walletAddress, setWalletAddress] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const [gifList, setGifList] = useState<string[] | null>([]);
+  const [gifList, setGifList] = useState([]);
 
   const checkIfWalletIsConnected = async () => {
     // We're using optional chaining (question mark) to check if the object is null
@@ -113,6 +115,7 @@ const Home: NextPage = () => {
 
       console.log("Got the account", account)
       setGifList(account.gifList)
+      console.log(account.gifList[0])
 
     } catch (error) {
       console.log("Error in getGifList: ", error)
@@ -128,12 +131,27 @@ const Home: NextPage = () => {
   }, [walletAddress]);
 
   const sendGif = async () => {
-    if (inputValue.length > 0) {
-      console.log('Gif link:', inputValue);
-      setGifList([...gifList, inputValue]);
-      setInputValue('');
-    } else {
-      console.log('Empty input. Try again.');
+    if (inputValue.length === 0) {
+      console.log("No gif link given!")
+      return
+    }
+    setInputValue('');
+    console.log('Gif link:', inputValue);
+    try {
+      const provider = getProvider()
+      const program = await getProgram();
+
+      await program.rpc.addGif(inputValue, {
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+          user: provider.wallet.publicKey,
+        },
+      });
+      console.log("GIF successfully sent to program", inputValue)
+
+      await getGifList();
+    } catch (error) {
+      console.log("Error sending GIF:", error)
     }
   };
 
