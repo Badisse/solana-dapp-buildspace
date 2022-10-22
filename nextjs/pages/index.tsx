@@ -1,6 +1,30 @@
 import type { NextPage } from 'next'
 import { useEffect, useState } from 'react';
 import Grid from '../components/Grid';
+import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { Program, AnchorProvider, web3 } from '@project-serum/anchor';
+
+// SystemProgram is a reference to the Solana runtime!
+const { SystemProgram, Keypair } = web3;
+
+// Create a keypair for the account that will hold the GIF data.
+let baseAccount = Keypair.generate();
+
+// This is the address of your solana program, if you forgot, just run solana address -k target/deploy/myepicproject-keypair.json
+const programID = new PublicKey('WJjLkThJKPff4aF9QDf8jZaYoosoMrim7dZzVqJ6QDc');
+
+// Set our network to devnet.
+const network = clusterApiUrl('devnet');
+
+interface Opts {
+  preflightCommitment: web3.Commitment;
+  confirmOptions: web3.ConfirmOptions
+}
+
+// Controls how we want to acknowledge when a transaction is "done".
+const opts = {
+  preflightCommitment: "processed"
+}
 
 const TEST_GIFS = [
   'https://i.giphy.com/media/eIG0HfouRQJQr1wBzz/giphy.webp',
@@ -13,7 +37,7 @@ const TEST_GIFS = [
 const Home: NextPage = () => {
   const [walletAddress, setWalletAddress] = useState(null);
   const [inputValue, setInputValue] = useState('');
-  const [gifList, setGifList] = useState<string[]>([]);
+  const [gifList, setGifList] = useState<string[] | null>([]);
 
   const checkIfWalletIsConnected = async () => {
     // We're using optional chaining (question mark) to check if the object is null
@@ -45,6 +69,64 @@ const Home: NextPage = () => {
     setInputValue(value);
   }
 
+  const getProvider = () => {
+    const connection = new Connection(network, opts.preflightCommitment);
+    const provider = new AnchorProvider(
+      connection, window.solana, opts.preflightCommitment,
+    );
+    return provider;
+  }
+
+  const createGifAccount = async () => {
+    try {
+      const provider = getProvider();
+      const program = await getProgram();
+
+      console.log("ping")
+      await program.rpc.startStuffOff({
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+          user: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        },
+        signers: [baseAccount]
+      });
+      console.log("Created a new BaseAccount w/ address:", baseAccount.publicKey.toString())
+      await getGifList();
+
+    } catch (error) {
+      console.log("Error creating BaseAccount account:", error)
+    }
+  }
+
+  const getProgram = async () => {
+    // Get metadata about your solana program
+    const idl = await Program.fetchIdl(programID, getProvider());
+    // Create a program that you can call
+    return new Program(idl, programID, getProvider());
+  };
+
+  const getGifList = async () => {
+    try {
+      const program = await getProgram();
+      const account = await program.account.baseAccount.fetch(baseAccount.publicKey);
+
+      console.log("Got the account", account)
+      setGifList(account.gifList)
+
+    } catch (error) {
+      console.log("Error in getGifList: ", error)
+      setGifList(null);
+    }
+  }
+
+  useEffect(() => {
+    if (walletAddress) {
+      console.log('Fetching GIF list...');
+      getGifList()
+    }
+  }, [walletAddress]);
+
   const sendGif = async () => {
     if (inputValue.length > 0) {
       console.log('Gif link:', inputValue);
@@ -64,21 +146,35 @@ const Home: NextPage = () => {
     </button>
   );
 
-  const renderConnectedContainer = () => (
-    <div>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          sendGif();
-        }}
-        className="flex gap-10"
-      >
-        <input type="text" placeholder="Enter gif link!" value={inputValue} onChange={onInputChange} className="bg-white border-4 px-2 py-1 flex-1 border-gray-500 rounded-lg text-gray-500" />
-        <button type="submit" className="bg-pink-400 rounded-lg px-4 py-2 border-4 border-white text-white font-bold">Submit</button>
-      </form>
-      <Grid gifs={gifList} />
-    </div>
-  );
+  const renderConnectedContainer = () => {
+    if (gifList === null) {
+      return (
+        <div className="">
+          <button className="bg-pink-700 rounded-lg px-4 py-2" onClick={createGifAccount}>
+            Do One-Time Initialization For GIF Program Account
+          </button>
+        </div>
+      )
+    }
+    // Otherwise, we're good! Account exists. User can submit GIFs.
+    else {
+      return (
+        <div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              sendGif();
+            }}
+            className="flex gap-10"
+          >
+            <input type="text" placeholder="Enter gif link!" value={inputValue} onChange={onInputChange} className="bg-white border-4 px-2 py-1 flex-1 border-gray-500 rounded-lg text-gray-500" />
+            <button type="submit" className="bg-pink-400 rounded-lg px-4 py-2 border-4 border-white text-white font-bold">Submit</button>
+          </form>
+          <Grid gifs={gifList} />
+        </div>
+      )
+    }
+  }
 
   useEffect(() => {
     checkIfWalletIsConnected();
